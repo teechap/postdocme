@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+<head>
+	<title>Postdoc.me Collection</title>
+	<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" ></script>
+	<script type="text/javascript" src="{{url_for('static', filename='jquery.clippy.min.js')}}"></script>
+	<script src="{{url_for('static', filename='dropzone.js')}}"></script>
+    <link rel=stylesheet type=text/css href="{{url_for('static', filename='dropzone.css') }}">
+    <script>
+    	$(document).ready(function(){
+			var docobj = {{doclist|tojson|safe}};
+			Dropzone.options.myAwesomeDropzone = {
+				init: function(){
+					
+					var docs = docobj['doclist'];
+					for (var i = 0; i < docs.length; i++) {
+						var doc = docs[i];
+						var url = "http://127.0.0.1:5000/".concat(doc["docid"]);
+						var mockdoc = {name: doc['name'], size: doc['size']};
+						this.emit("addedfile", mockdoc);
+						$('.dz-file-preview:last').attr('id', doc['docid']);
+
+						$('.dz-file-preview:last').append($('<input/>', {
+							type: "text",
+							readonly: "readonly",
+							value: url,
+						}));
+
+						var clipbtn = $('<button/>', {
+							type: "button",
+							class: "clippy",
+						});
+						$('.dz-file-preview:last').append(clipbtn);
+						clipbtn.clippy({
+							clippy_path: '/static/clippy.swf',
+							text: url,
+						});
+
+						var viewbut = $('<button/>', {
+							type: "button",
+							text: "View pdf",
+						});
+						$('.dz-file-preview:last').append(viewbut);
+						viewbut.click(function(){
+							window.open(url);
+						});
+
+						$('.dz-file-preview:last input').click(function(e){
+							$(this).focus().select();
+						});
+					}
+				}
+			};
+		});
+    </script>
+</head>
+<body>
+	<div id="container">
+ 	<form action="{{url_for('index')}}" class="dropzone dz-clickable" id="myAwesomeDropzone">
+ 	  <div class="dz-default dz-message"></div>
+    </form>
+    </div>
+</body>    
+</html>

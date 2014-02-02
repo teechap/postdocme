@@ -1,0 +1,11 @@
+# virtualenv
+.Python
+bin
+lib
+include
+
+# Mac OS stuff
+.DS_Store
+
+# Python stuff
+*.pyc
