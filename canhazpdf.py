@@ -10,16 +10,38 @@ from flask import (Flask,
 				  jsonify,
 				  g)
 from werkzeug import secure_filename
+import rethinkdb as r
+from rethinkdb.errors import RqlRuntimeError, RqlDriverError
 
-app = Flask(__name__)
-
+app = Flask(__name__, instance_relative_config=True)
+app.config.from_object('config') #goes in version control
+app.config.from_pyfile('config.py') #production config secretz
 
 #helper functions
 def allowed_file(filename):
 	return ('.' in filename) and (filename.rsplit('.', 1)[1] in \
 		set(['pdf', 'PDF']))
 
-#views
+#===============db setup / closing before/after requests==============
+@app.before_request
+def setup_database():
+	try:
+		g.db_connection = r.connect(host=app.config['DBHOST'],
+							 		port=app.config['DBPORT'],
+							 		db=app.config['DBNAME'])
+	except RqlDriverError:
+		abort(503, "Looks like the database is down. My bad!")
+
+@app.teardown_request
+def disconnect_db():
+	try:
+		g.db_connection.close()
+	except AttributeError:
+		pass
+#=====================================================================
+
+#==========================views======================================
+
 @app.route('/', methods=["GET", "POST"])
 def index():
 	if request.method == "GET":
@@ -74,7 +96,7 @@ def show_collection(id=None):
 		return render_template('collection.html', 
 								doclist={'doclist': doclist})
 	return redirect(url_for('index'))
-
+#=====================================================================
 @app.errorhandler(404)
 def page_not_found(error):
 	return "Crap! I can't find that page @_@", 404

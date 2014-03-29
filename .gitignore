@@ -3,6 +3,7 @@
 bin
 lib
 include
+instance/
 
 # Mac OS stuff
 .DS_Store
