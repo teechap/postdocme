@@ -1,5 +1,7 @@
 import datetime
 import os
+import base64
+import uuid
 from flask import (Flask, 
 				  request, 
 				  render_template, 
@@ -21,6 +23,9 @@ app.config.from_pyfile('config.py') #production config secretz
 def allowed_file(filename):
 	return ('.' in filename) and (filename.rsplit('.', 1)[1] in \
 		set(['pdf', 'PDF']))
+
+def make_unique_docid(): #returns unique str for new document's url
+	return base64.urlsafe_b64encode(uuid.uuid4().bytes).strip("=")
 
 #===============db setup / closing before/after requests==============
 @app.before_request
@@ -45,8 +50,6 @@ def disconnect_db():
 @app.route('/', methods=["GET", "POST"])
 def index():
 	if request.method == "GET":
-		#make lots of documents and return a JSON object with ob ids
-		
 		return render_template('index.html')
 	if request.method == "POST":
 		file_to_upload = request.files['file']
