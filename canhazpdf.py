@@ -19,7 +19,7 @@ app = Flask(__name__, instance_relative_config=True)
 app.config.from_object('config') #goes in version control
 app.config.from_pyfile('config.py') #production config secretz
 
-#helper functions
+#=========================helper functions=====================================
 def allowed_file(filename):
 	return ('.' in filename) and (filename.rsplit('.', 1)[1] in \
 		set(['pdf', 'PDF']))
@@ -42,7 +42,7 @@ def upload_to_riakCS(flask_file, unique_id):
 	k.key = unique_id + '.pdf'
 	k.set_contents_from_string(flask_file.read())
 
-#===============db setup / closing before/after requests==============
+#===============db setup / closing before/after requests=======================
 @app.before_request
 def setup_database():
 	try:
@@ -58,9 +58,9 @@ def disconnect_db():
 		g.db_conn.close()
 	except AttributeError:
 		pass
-#=====================================================================
+#==============================================================================
 
-#==========================views======================================
+#============================views=============================================
 
 @app.route('/', methods=["GET", "POST"])
 def index():
@@ -127,7 +127,7 @@ def show_collection(id=None):
 		return render_template('collection.html', 
 								doclist={'doclist': doclist})
 	return redirect(url_for('index'))
-#=====================================================================
+#==============================================================================
 @app.errorhandler(404)
 def page_not_found(error):
 	return "Crap! I can't find that page @_@", 404
