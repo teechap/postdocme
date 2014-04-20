@@ -3,6 +3,7 @@
 bin
 lib
 include
+venv/
 instance/
 
 # Mac OS stuff
