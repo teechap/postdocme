@@ -137,13 +137,21 @@ def show_doc_or_collection(id=None):
 		else: #id might be for a collection, query db for collections with id
 			result = r.table("collections").get(id).run(g.db_conn)
 			if result is not None:
-				db_cursor = r.table("join_ids")
-				#get list of dicts containing docid, name, file size attrs
-				doclist = []
-		return render_template('collection.html',
-								doclist={'doclist': doclist})
+				db_cursor = r.table("join_ids")\
+					.get_all(id, index="collection_id")\
+					.eq_join("pdf_id", r.table("pdfs"))\
+					.without({"left": {"collection_id": True.
+									   "pdf_id": True}})\
+					.zip()\
+					.run(g.db_conn)
+				#get list of dicts w/ docid, name, file size attrs
+				doclist = [doc for doc in db_cursor]
+				#TODO make attr names in template match those returned 
+				#by db (changed attr names when switched to rethinkdb)
+				return render_template('collection.html',
+					doclist={'doclist': doclist})
 	else:
-		abort(404)
+		redirect(url_for('index'))
 
 @app.route('/collect', methods=["POST"])
 def make_collection():
