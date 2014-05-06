@@ -27,20 +27,35 @@ def allowed_file(filename):
 def make_id(): #returns unique str for new document's url
 	return base64.urlsafe_b64encode(uuid.uuid4().bytes).strip("=")
 
-def upload_to_riakCS(flask_file, unique_id):
+def upload_to_S3(flask_file, unique_id):
 	'''
-	Uploads files to Riak CS cluster. 
+	Uploads files to Amazon S3. 
 
 	param flask_file: a file obj from flask.request.files['file']
 	param unique_id: a url safe uuid from make_id()
 	'''
 	
-	conn = S3Connection(app.config['RIAKCS_ACCESS_KEY'],
-						app.config['RIAKCS_SECRET_KEY'])
-	bucket = conn.get_bucket(app.config['RIAKCS_BUCKET_NAME'])
+	conn = S3Connection(app.config['S3_ACCESS_KEY'],
+						app.config['S3_SECRET_KEY'])
+	bucket = conn.get_bucket(app.config['S3_BUCKET'])
 	k = Key(bucket)
 	k.key = unique_id + '.pdf'
 	k.set_contents_from_string(flask_file.read())
+
+def get_doc_from_S3(id):
+	'''
+	Returns binary pdf data from S3 as a string
+
+	:param id: unique doc id as a string
+
+	'''
+	conn = S3Connection(app.config['S3_ACCESS_KEY'],
+						app.config['S3_SECRET_KEY'])
+	bucket = conn.get_bucket(app.config['S3_BUCKET'])
+	#no key validation because it should be there 
+	#and validation requires an extra HEAD request
+	key = bucket.get_key(id, validate=False)
+	return key.get_contents_as_string()
 
 #===============db setup / closing before/after requests=======================
 @app.before_request
@@ -81,37 +96,59 @@ def index():
 												}).run(g.db_conn)
 			if db_result['errors'] == 0:
 				try:
-					upload_to_riakCS(file_to_upload, unique_id)
+					upload_to_S3(file_to_upload, unique_id)
 				except Exception:
-					abort(500, "Server failed to upload. Ugh.")
+					abort(500, "Server couldn't upload to S3. Ugh.")
+				else:
+					return jsonify({'docid': unique_id}) #docid is a str
 			else:
 				abort(500, "Server failed. Ugh.")
-			return jsonify({'docid': unique_id}) #docid is a string
 		else: #TODO? flash alert, but client side checks this anyway
 			return redirect(url_for('index')) 
 		
 @app.route('/doc/<id>')
 def get_pdf(id=None):
 	if id is not None:
-		#return doc from Riak CS cluster
-		fn = query.name #filename
-		response = make_response(doc) #doc is binary pdf string
-		response.headers['Content-Type'] = 'application/pdf'
-		response.headers['Content-Disposition'] = \
-			'inline; filename=%s.pdf' % fn
-		return response
+		#double check that doc is in database
+		result = r.table("pdfs").get(id).run(g.db_conn)
+			if result is not None:
+				#return doc from S3
+				try:
+					doc = get_doc_from_S3(id)
+				except Exception:
+					abort(500, "Couldn't get doc from S3.")
+				else:
+					fn = result["filename"]
+					response = make_response(doc) #doc is binary pdf string
+					response.headers['Content-Type'] = 'application/pdf'
+					response.headers['Content-Disposition'] = \
+						'inline; filename=%s.pdf' % fn
+					return response
+			else:
+				abort(500, "Couldn't find requested document.")
 	return redirect(url_for('index'))
 
 @app.route('/<id>')
-def show_pdf(id=None):
+def show_doc_or_collection(id=None):
 	if id is not None:
-		return render_template('document.html', doc_id=id)
-	return redirect(url_for('index'))
+		result = r.table("pdfs").get(id).run(g.db_conn)
+		if result is not None: #doc in rethinkdb, render template with it
+			return render_template('document.html', doc_id=id)
+		else: #id might be for a collection, query db for collections with id
+			result = r.table("collections").get(id).run(g.db_conn)
+			if result is not None:
+				db_cursor = r.table("join_ids")
+				#get list of dicts containing docid, name, file size attrs
+				doclist = []
+		return render_template('collection.html',
+								doclist={'doclist': doclist})
+	else:
+		abort(404)
 
 @app.route('/collect', methods=["POST"])
 def make_collection():
 	doc_list = request.get_json()['docs']
-	#make a list of docid strings
+	
 	#save collection list in rethinkdb (use joins or something)
 	return jsonify({'colid': colid}) #str with a unique id 4 collection
 
