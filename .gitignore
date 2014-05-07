@@ -5,7 +5,7 @@ lib
 include
 venv/
 instance/
-
+rethinkdb_data/
 # Mac OS stuff
 .DS_Store
 

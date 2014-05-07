@@ -9,15 +9,17 @@
     <script>
     	$(document).ready(function(){
 			var docobj = {{doclist|tojson|safe}};
+
 			Dropzone.options.myAwesomeDropzone = {
 				init: function(){
-					
+
 					var docs = docobj['doclist'];
 					for (var i = 0; i < docs.length; i++) {
 						var doc = docs[i];
-						var url = "http://127.0.0.1:5000/".concat(doc["docid"]);
-						var mockdoc = {name: doc['filename'], size: doc['size']};
-						this.emit("addedfile", mockdoc);
+						var url = "http://127.0.0.1:5000/".concat(doc["id"]);
+						var mockdoc = {name: doc['filename'], size: parseInt(doc['size'], 10)};
+                    	this.emit("addedfile", mockdoc);
+
 						$('.dz-file-preview:last').attr('id', doc['id']);
 
 						$('.dz-file-preview:last').append($('<input/>', {
@@ -42,6 +44,7 @@
 						});
 						$('.dz-file-preview:last').append(viewbut);
 						viewbut.click(function(){
+                            /* opens last url for all buttons, change to open element's url */
 							window.open(url);
 						});
 
@@ -60,5 +63,5 @@
  	  <div class="dz-default dz-message"></div>
     </form>
     </div>
-</body>    
+</body>
 </html>

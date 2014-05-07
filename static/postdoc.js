@@ -4,6 +4,9 @@ $(document).ready(function(){
 
 	Dropzone.options.myAwesomeDropzone = {
 		init: function() {
+            this.on("sending", function(file, xhr, formData) {
+                formData.append("filesize", file.size)
+            });
 			this.on("success", function(file, responseText) {
 
 				var docid = responseText["docid"];
@@ -38,9 +41,9 @@ $(document).ready(function(){
 				});
 
 				dropped_docs['docs'].push(docid);
-				
+
 				if (dropped_docs['docs'].length===2){
-					
+
 					var button2 = $('<button/>', {
 						type: "button",
 						text: "Make a Collection",
@@ -57,7 +60,7 @@ $(document).ready(function(){
 							success: function(data, textStatus, jqXHR){
 
 								var colid = data['colid'];
-								var colurl = 'http://127.0.0.1:5000/c/'.concat(colid);
+								var colurl = 'http://127.0.0.1:5000/'.concat(colid);
 
 								var div = $('<div/>', {
 									id: "collected",
@@ -67,7 +70,7 @@ $(document).ready(function(){
 									readonly: "readonly",
 									value: colurl,
 								});
-								
+
 								var colclip = $('<button/>', {
 									type: "button",
 									class: "clippy",

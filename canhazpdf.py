@@ -1,17 +1,17 @@
 import base64
 import uuid
 import os
-from flask import (Flask, 
-                  request, 
-                  render_template, 
-                  redirect, 
-                  make_response, 
-                  url_for, 
+from flask import (Flask,
+                  request,
+                  render_template,
+                  redirect,
+                  make_response,
+                  url_for,
                   abort,
                   jsonify,
                   g)
 import rethinkdb as r
-from rethinkdb.errors import RqlRuntimeError, RqlDriverError
+from rethinkdb.errors import RqlDriverError
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 
@@ -20,7 +20,7 @@ app.config['S3_ACCESS_KEY'] = os.environ.get("S3_ACCESS_KEY")
 app.config['S3_SECRET_KEY'] = os.environ.get("S3_SECRET_KEY")
 app.config['S3_BUCKET'] = os.environ.get("S3_BUCKET")
 app.config['DBHOST'] = os.environ.get("RETHINKDB_HOST")
-app.config['DBPORT'] = os.environ.get("RETHINKDB_PORT")
+app.config['DBPORT'] = 28015
 app.config['DBNAME'] = os.environ.get("RETHINKDB_NAME")
 
 #=========================helper functions=====================================
@@ -33,12 +33,12 @@ def make_id(): #returns unique str for new document's url
 
 def upload_to_S3(flask_file, unique_id):
     '''
-    Uploads files to Amazon S3. 
+    Uploads files to Amazon S3.
 
     param flask_file: a file obj from flask.request.files['file']
     param unique_id: a url safe uuid from make_id()
     '''
-    
+
     conn = S3Connection(app.config['S3_ACCESS_KEY'],
                         app.config['S3_SECRET_KEY'])
     bucket = conn.get_bucket(app.config['S3_BUCKET'])
@@ -56,10 +56,11 @@ def get_doc_from_S3(id):
     conn = S3Connection(app.config['S3_ACCESS_KEY'],
                         app.config['S3_SECRET_KEY'])
     bucket = conn.get_bucket(app.config['S3_BUCKET'])
-    #no key validation because it should be there 
+    #no key validation because it should be there
     #and validation requires an extra HEAD request
-    key = bucket.get_key(id, validate=False)
-    return key.get_contents_as_string()
+    key = bucket.get_key(id + ".pdf", validate=False)
+    result = key.get_contents_as_string()
+    return result
 
 #===============db setup / closing before/after requests=======================
 @app.before_request
@@ -72,7 +73,7 @@ def setup_database():
         abort(503, "Looks like the database is down. My bad!")
 
 @app.teardown_request
-def disconnect_db():
+def disconnect_db(exception):
     try:
         g.db_conn.close()
     except AttributeError:
@@ -91,7 +92,7 @@ def index():
         if allowed_file(fn):
             #save metadata to rethinkdb
             unique_id = make_id()
-            file_size = file_to_upload.content_length #bytes int
+            file_size = request.form['filesize']
             db_result = r.table("pdfs").insert({
                                                 "id": unique_id,
                                                 "filename": fn,
@@ -107,29 +108,29 @@ def index():
                     return jsonify({'docid': unique_id}) #docid is a str
             else:
                 abort(500, "Server failed. Ugh.")
-        else: #TODO? flash alert, but client side checks this anyway
-            return redirect(url_for('index')) 
-        
+        else:
+            return "File type not allowed"
+
 @app.route('/doc/<id>')
 def get_pdf(id=None):
     if id is not None:
         #double check that doc is in database
         result = r.table("pdfs").get(id).run(g.db_conn)
-            if result is not None:
-                #return doc from S3
-                try:
-                    doc = get_doc_from_S3(id)
-                except Exception:
-                    abort(500, "Couldn't get doc from S3.")
-                else:
-                    fn = result["filename"]
-                    response = make_response(doc) #doc is binary pdf string
-                    response.headers['Content-Type'] = 'application/pdf'
-                    response.headers['Content-Disposition'] = \
-                        'inline; filename=%s.pdf' % fn
-                    return response
+        if result is not None:
+            #return doc from S3
+            try:
+                doc = get_doc_from_S3(id)
+            except Exception:
+                abort(500, "Couldn't get doc from S3.")
             else:
-                abort(500, "Couldn't find requested document.")
+                fn = result["filename"]
+                response = make_response(doc) #doc is binary pdf string
+                response.headers['Content-Type'] = 'application/pdf'
+                response.headers['Content-Disposition'] = \
+                    'inline; filename=%s.pdf' % fn
+                return response
+        else:
+            abort(404)
     return redirect(url_for('index'))
 
 @app.route('/<id>')
@@ -144,16 +145,16 @@ def show_doc_or_collection(id=None):
                 db_cursor = r.table("join_ids")\
                     .get_all(id, index="collection_id")\
                     .eq_join("pdf_id", r.table("pdfs"))\
-                    .without({"left": {"collection_id": True.
+                    .without({"left": {"collection_id": True,
                                        "pdf_id": True}})\
                     .zip()\
                     .run(g.db_conn)
                 #get list of dicts w/ docid, name, file size attrs
                 doclist = [doc for doc in db_cursor]
-                #TODO make attr names in template match those returned 
-                #by db (changed attr names when switched to rethinkdb)
                 return render_template('collection.html',
                     doclist={'doclist': doclist})
+            else:
+                abort(404)
     else:
         redirect(url_for('index'))
 
@@ -182,4 +183,4 @@ def page_not_found(error):
     return "Crap! I can't find that page @_@", 404
 
 if __name__ == "__main__":
-    app.run(host='127.0.0.1', port=8080)
+    app.run(host='127.0.0.1', port=5000, debug=True)
