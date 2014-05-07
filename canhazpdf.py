@@ -16,6 +16,7 @@ from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024 #128 MB
 app.config['S3_ACCESS_KEY'] = os.environ.get("S3_ACCESS_KEY")
 app.config['S3_SECRET_KEY'] = os.environ.get("S3_SECRET_KEY")
 app.config['S3_BUCKET'] = os.environ.get("S3_BUCKET")
